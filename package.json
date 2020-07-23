@@ -1,0 +1,27 @@
+{
+  "name": "component-ioc",
+  "version": "0.1.0",
+  "description": "Replaces direct references to svelte components with dynamic references fetched from a dependency store.\u001b[D\u001b[C\u001b[C\u001b[C\u001b[D\u001b[D",
+  "main": "src/index.js",
+  "scripts": {
+    "test": "mocha"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CameronRKing/component-ioc.git"
+  },
+  "keywords": [
+    "svelte",
+    "rollup",
+    "ioc"
+  ],
+  "author": "Cameron King <cameronking42@gmail.com>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/CameronRKing/component-ioc/issues"
+  },
+  "homepage": "https://github.com/CameronRKing/component-ioc#readme",
+  "devDependencies": {
+    "mocha": "^8.0.1"
+  }
+}
