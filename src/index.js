@@ -1,46 +1,76 @@
+const path = require('path');
+
 export default function componentIoc() {
-    const storeRefId = this.emitFile({ type: 'asset', fileName: 'component-store.js' });
-    // EmittedAsset
-    // {
-    //   type: 'asset',
-    //   name?: string,
-    //   fileName?: string,
-    //   source?: string | Uint8Array
-    // }
-
-    // needed?
-    function storeUrl() {
-        return `import.meta.ROLLUP_FILE_URL_${storeRefId}`;
-    }
-
-    const componentDefinitions = {};
+    const componentDefinitions = [];
 
     return {
         name: 'component-ioc',
+        buildStart() {
+            // storeRefId = this.emitFile({ type: 'asset', name: '__component-store' });
+        },
+        resolveId(id) {
+            if (id !== 'component-store') return;
+            return '\0component-ioc:component-store';
+        },
+        load(id) {
+            if (id !== '\0component-ioc:component-store') return;
+
+            const cmps = componentDefinitions.map(path => ({
+                path,
+                name: path.replace(/\//g, ''),
+                file: '.' + path + '.svelte'
+            }));
+            const imports = cmps.map(({ name, file }) => `import ${name} from '${file}';`);
+            const props = cmps.map(({ path, name }) => `'${path}': ${name}`);
+
+            return `import { writable } from 'svelte/store';
+${imports.join('\n')}
+const base = writable({
+    ${props.join(',\n    ')}
+});
+const store = {
+    subscribe: base.subscribe,
+    replace(name, newCmp) {
+        base.update(store => {
+            store[name] = newCmp;
+            return store;
+        });
+    }
+};
+
+window.__dis__ = store;
+export default store;
+`;
+            return storeDefinition;
+        },
         transform(code, id) {
+            if (!id.endsWith('.svelte')) return;
+
             let src = code;
             const replace = (...args) => src = src.replace(...args);
 
-            replace('<script>', '<script>import DIS from ' + /* how do I find the dependency store location? */);
+            const idPath = id.replace(__dirname, '').replace('\\', '/');
 
-            // this line won't work with relative imports
-            // the same file might be attached to multiple names (not great, but workable)
-            // different files might be attached to the same relative path (not workable)
-                // once I figure out how the component paths should be constructed,
-                // I also need to save them so I can populate the store
-            replace(/import (\w+) from ['"](.*)\.svelte['"]/g, '$: $1 = $DIS["$2"]');
+            replace('<script>', `<script>import __DIS__ from 'component-store'`);
+
+
+            // replace imports of svelte components with dependency store injections
+            let match;
+            while (match = src.match(/import (\w+) from ['"](.*)\.svelte['"]/)) {
+                const [str, cmpName, relativePath] = match;
+                const containingDir = path.dirname(idPath);
+                const importId = path.posix.resolve(path.dirname(idPath), relativePath);
+                componentDefinitions.push(importId);
+                replace(str, `$: ${cmpName} = $__DIS__['${importId}']`);
+            }
 
             replace(/<([A-Z]\w+)/g, '<svelte:component this={$1}');
             replace(/<\/[A-Z]\w+>/g, '</svelte:component>');
-            return src;
+
+            return {
+                code: src,
+                map: null
+            };
         },
-        buildEnd() {
-            const storeDefinition = `// import svelte writeable store
-// import all component definitions
-// define the store, first as a writeable,
-// then exposing a custom store with only subscribe() and replace(name, newCmp)
-`
-            this.setAssetSource(storeRefId, storeDefinition);
-        }
     };
 }
