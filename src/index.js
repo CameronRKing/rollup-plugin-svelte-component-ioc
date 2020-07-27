@@ -1,17 +1,12 @@
-const path = require('path');
+import path from 'path';
+import { createFilter } from '@rollup/pluginutils';
 
-export default function componentIoc() {
+export default function componentIoc({ include, exclude, root }={}) {
+    const filter = createFilter(include, exclude);
     const componentDefinitions = [];
 
     return {
         name: 'component-ioc',
-        buildStart() {
-            // storeRefId = this.emitFile({ type: 'asset', name: '__component-store' });
-        },
-        resolveId(id) {
-            if (id !== 'component-store') return;
-            return '\0component-ioc:component-store';
-        },
         load(id) {
             if (id !== '\0component-ioc:component-store') return;
 
@@ -44,26 +39,26 @@ export default store;
             return storeDefinition;
         },
         transform(code, id) {
-            if (!id.endsWith('.svelte')) return;
+            if (!root) this.error('The option `root` (the root directory from which to relativize file names) is required. Suggested value: __dirname');
+            if (!filter(id) || !id.endsWith('.svelte')) return;
 
             let src = code;
             const replace = (...args) => src = src.replace(...args);
 
-            const idPath = id.replace(__dirname, '').replace('\\', '/');
+            const idPath = id.replace(root, '').replace('\\', '/');
 
-            replace('<script>', `<script>import __DIS__ from 'component-store'`);
-
+            replace('<script>', `<script>import __DIS__ from '\0component-ioc:component-store';`);
 
             // replace imports of svelte components with dependency store injections
             let match;
-            while (match = src.match(/import (\w+) from ['"](.*)\.svelte['"]/)) {
+            while (match = src.match(/import (\w+) from ['"]([^'"]*)\.svelte['"]/)) {
                 const [str, cmpName, relativePath] = match;
-                const containingDir = path.dirname(idPath);
                 const importId = path.posix.resolve(path.dirname(idPath), relativePath);
                 componentDefinitions.push(importId);
                 replace(str, `$: ${cmpName} = $__DIS__['${importId}']`);
             }
 
+            // replace custom components with dynamic components
             replace(/<([A-Z]\w+)/g, '<svelte:component this={$1}');
             replace(/<\/[A-Z]\w+>/g, '</svelte:component>');
 
