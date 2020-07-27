@@ -27,5 +27,9 @@
     "esm": "^3.2.25",
     "mocha": "^8.0.1",
     "rollup": "^2.23.0"
+  },
+  "dependencies": {
+    "findit": "^2.0.0",
+    "golden-layout": "^1.5.9"
   }
 }

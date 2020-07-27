@@ -1,13 +1,26 @@
 import path from 'path';
+import findit from 'findit'
 import { createFilter } from '@rollup/pluginutils';
 import layoutFile from './layoutFile.js';
 
 export default function componentIoc(options = {}) {
     const filter = createFilter(options.include, options.exclude);
-    const componentDefinitions = [];
 
+    const componentDefinitions = [];
     return {
         name: 'component-ioc',
+        buildStart() {
+            const finder = findit(options.root);
+            finder.on('file', file => {
+                if (file.endsWith('.svelte'))
+                    componentDefinitions.push(file
+                        .replace(options.root, '')
+                        .replace(/\\/g, '/')
+                        .replace('.svelte', '')
+                    );
+            });
+            return new Promise(resolve => finder.on('end', resolve));
+        },
         resolveId(id, importer) {
             if (id == './App.svelte' && importer.endsWith('main.js')) {
                 return options.root + '/src/__dis-base-layout.svelte';
