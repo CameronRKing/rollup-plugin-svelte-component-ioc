@@ -1,8 +1,8 @@
 import path from 'path';
 import { createFilter } from '@rollup/pluginutils';
 
-export default function componentIoc({ include, exclude, root }={}) {
-    const filter = createFilter(include, exclude);
+export default function componentIoc(options = {}) {
+    const filter = createFilter(options.include, options.exclude);
     const componentDefinitions = [];
 
     return {
@@ -39,13 +39,17 @@ export default store;
             return storeDefinition;
         },
         transform(code, id) {
-            if (!root) this.error('The option `root` (the root directory from which to relativize file names) is required. Suggested value: __dirname');
+            if (!options.root) this.error('The option `root` (the root directory from which to relativize file names) is required. Suggested value: __dirname');
             if (!filter(id) || !id.endsWith('.svelte')) return;
+
 
             let src = code;
             const replace = (...args) => src = src.replace(...args);
+            const idPath = id.replace(options.root, '').replace('\\', '/');
 
-            const idPath = id.replace(root, '').replace('\\', '/');
+            if (options.exposeSource) {
+                this.emitFile({ type: 'asset', source: code, idPath.slice(1) });
+            }
 
             replace('<script>', `<script>import __DIS__ from '\0component-ioc:component-store';`);
 
