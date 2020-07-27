@@ -1,5 +1,6 @@
 import path from 'path';
 import { createFilter } from '@rollup/pluginutils';
+import layoutFile from './layoutFile.js';
 
 export default function componentIoc(options = {}) {
     const filter = createFilter(options.include, options.exclude);
@@ -7,7 +8,16 @@ export default function componentIoc(options = {}) {
 
     return {
         name: 'component-ioc',
+        resolveId(id, importer) {
+            if (id == './App.svelte' && importer.endsWith('main.js')) {
+                return options.root + '/src/__dis-base-layout.svelte';
+            }
+            if (id.startsWith('\0component-ioc')) return id;
+            return null;
+        },
         load(id) {
+            if (id == options.root + '/src/__dis-base-layout.svelte') return layoutFile;
+
             if (id !== '\0component-ioc:component-store') return;
 
             const cmps = componentDefinitions.map(path => ({
@@ -48,7 +58,7 @@ export default store;
             const idPath = id.replace(options.root, '').replace('\\', '/');
 
             if (options.exposeSource) {
-                this.emitFile({ type: 'asset', source: code, idPath.slice(1) });
+                this.emitFile({ type: 'asset', source: code, fileName: idPath.slice(1) });
             }
 
             replace('<script>', `<script>import __DIS__ from '\0component-ioc:component-store';`);
