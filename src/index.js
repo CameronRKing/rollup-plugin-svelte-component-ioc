@@ -33,11 +33,16 @@ export default function componentIoc(options = {}) {
             if (id == './App.svelte' && importer.endsWith('main.js')) {
                 return options.root + '/src/__dis-base-layout.svelte';
             }
+            if (id == './StoreList.svelte' && importer.endsWith('__dis-base-layout.svelte')) {
+                return options.root + '/src/__dis-store-list-svelte';
+            }
             if (id.startsWith('\0component-ioc')) return id;
             return null;
         },
         load(id) {
             if (id == options.root + '/src/__dis-base-layout.svelte') return fs.readFileSync('./layoutFile.svelte', 'utf8');
+            if (id == options.root + '/src/__dis-store-list.svelte') return fs.readFileSync('./StoreList.svelte', 'utf8');
+            if (id == '\0component-ioc:utils') return fs.readFileSync('./utils.js', 'utf8');
             if (id == '\0component-ioc:build-component') return fs.readFileSync('./browserBuild.js', 'utf8');
             if (id !== '\0component-ioc:component-store') return;
 
