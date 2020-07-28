@@ -6,17 +6,20 @@ import layoutFile from './layoutFile.js';
 export default function componentIoc(options = {}) {
     const filter = createFilter(options.include, options.exclude);
 
-    const componentDefinitions = [];
+    function pathRelativeToRoot(str) {
+        return str.replace(options.root, '').replace(/\\/g, '/');
+    }
+
+    const componentDefinitions = new Set();
     return {
         name: 'component-ioc',
         buildStart() {
             const finder = findit(options.root);
             finder.on('file', file => {
+                if (pathRelativeToRoot(file).startsWith('/public')) return;
                 if (file.endsWith('.svelte'))
-                    componentDefinitions.push(file
-                        .replace(options.root, '')
-                        .replace(/\\/g, '/')
-                        .replace('.svelte', '')
+                    componentDefinitions.add(
+                        pathRelativeToRoot(file).replace('.svelte', '')
                     );
             });
             return new Promise(resolve => finder.on('end', resolve));
@@ -33,7 +36,7 @@ export default function componentIoc(options = {}) {
 
             if (id !== '\0component-ioc:component-store') return;
 
-            const cmps = componentDefinitions.map(path => ({
+            const cmps = Array.from(componentDefinitions).map(path => ({
                 path,
                 name: path.replace(/\//g, ''),
                 file: '.' + path + '.svelte'
@@ -81,7 +84,6 @@ export default store;
             while (match = src.match(/import (\w+) from ['"]([^'"]*)\.svelte['"]/)) {
                 const [str, cmpName, relativePath] = match;
                 const importId = path.posix.resolve(path.dirname(idPath), relativePath);
-                componentDefinitions.push(importId);
                 replace(str, `$: ${cmpName} = $__DIS__['${importId}']`);
             }
 
