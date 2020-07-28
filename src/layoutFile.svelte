@@ -1,6 +1,11 @@
-export default `<script>
+<script>
 import { onMount } from 'svelte';
+import svelte from 'svelte/compiler';
 import App from './App.svelte';
+import buildComponent from '\0component-ioc:build-component';
+
+window.buildComponent = buildComponent;
+window.replaceSource = async (fileName, src) => window.__DIS__.replace(fileName, await buildComponent(fileName, src));
 
 function svelteComponent(name, CmpClass) {
     return [name, function(container, componentState) {
@@ -84,4 +89,3 @@ onMount(() => {
 });
 
 </script>
-`;

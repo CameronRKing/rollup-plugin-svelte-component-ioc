@@ -1,7 +1,7 @@
 import path from 'path';
+import fs from 'fs';
 import findit from 'findit'
 import { createFilter } from '@rollup/pluginutils';
-import layoutFile from './layoutFile.js';
 
 export default function componentIoc(options = {}) {
     const filter = createFilter(options.include, options.exclude);
@@ -11,9 +11,14 @@ export default function componentIoc(options = {}) {
     }
 
     const componentDefinitions = new Set();
+    let dependencyList;
     return {
         name: 'component-ioc',
         buildStart() {
+            const pack = JSON.parse(fs.readFileSync(options.root + '/package.json', 'utf8'));
+            dependencyList = Object.keys(pack.dependencies);
+            dependencyList.push('svelte/internal');
+
             const finder = findit(options.root);
             finder.on('file', file => {
                 if (pathRelativeToRoot(file).startsWith('/public')) return;
@@ -32,8 +37,8 @@ export default function componentIoc(options = {}) {
             return null;
         },
         load(id) {
-            if (id == options.root + '/src/__dis-base-layout.svelte') return layoutFile;
-
+            if (id == options.root + '/src/__dis-base-layout.svelte') return fs.readFileSync('./layoutFile.svelte', 'utf8');
+            if (id == '\0component-ioc:build-component') return fs.readFileSync('./browserBuild.js', 'utf8');
             if (id !== '\0component-ioc:component-store') return;
 
             const cmps = Array.from(componentDefinitions).map(path => ({
@@ -41,8 +46,17 @@ export default function componentIoc(options = {}) {
                 name: path.replace(/\//g, ''),
                 file: '.' + path + '.svelte'
             }));
-            const imports = cmps.map(({ name, file }) => `import ${name} from '${file}';`);
-            const props = cmps.map(({ path, name }) => `'${path}': ${name}`);
+            let depId = 0;
+            const imports = [
+                ...cmps.map(({ name, file }) => `import ${name} from '${file}';`),
+                ...dependencyList.map(dependency => `import * as dep${depId++} from '${dependency}';`)
+            ];
+
+            depId = 0;
+            const props = [
+                ...cmps.map(({ path, name }) => `'${path}': ${name}`),
+                ...dependencyList.map(dependency => `'${dependency}': dep${depId++}`)
+            ];
 
             return `import { writable } from 'svelte/store';
 ${imports.join('\n')}
@@ -59,7 +73,7 @@ const store = {
     }
 };
 
-window.__dis__ = store;
+window.__DIS__ = store;
 export default store;
 `;
             return storeDefinition;
@@ -71,7 +85,7 @@ export default store;
 
             let src = code;
             const replace = (...args) => src = src.replace(...args);
-            const idPath = id.replace(options.root, '').replace('\\', '/');
+            const idPath = pathRelativeToRoot(id);
 
             if (options.exposeSource) {
                 this.emitFile({ type: 'asset', source: code, fileName: idPath.slice(1) });
