@@ -5,7 +5,7 @@ import path from 'path';
 const root = path.dirname(__dirname);
 const plugin = componentIoc({ root });
 
-describe('component-ioc', () => {
+describe('build transformations', () => {
     it('builds a component dependency store by looking for svelte components in the given root folder', async () => {
         await plugin.buildStart();
         const storeDefinition = plugin.load('\0component-ioc:component-store');
@@ -41,4 +41,16 @@ describe('component-ioc', () => {
         expect(newSrc.code).to.equal(`<svelte:component this={MyCmp} attr={not affected}></svelte:component>
             <svelte:component this={OtherCmp} attr={not affected }/>`);
     });
+});
+
+describe('browser behavior', () => {
+    // how do I test the runtime behavior of the store?
+    it.skip('adds a __DIS__ property to the window', () => {});
+    it.skip('exposes a store subscribe method', () => {});
+    it.skip('exposes a store get method', () => {});
+    it.skip('replaces a component definition with a constructor', () => {});
+    it.skip('replaces a component definition from source code', () => {});
+    it.skip('looks up source code for a component definition, finding it if `exposeSource: true` is set', () => {});
+    it.skip('looks up source code for a component definition, returning user-provided code if it exists', () => {});
+    it.skip('looks up source code for a component definition, returning an empty string if no source is available', () => {});
 });

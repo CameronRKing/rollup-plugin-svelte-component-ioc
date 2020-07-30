@@ -34,6 +34,7 @@ export default function componentIoc(options = {}) {
             return new Promise(resolve => finder.on('end', resolve));
         },
         load(id) {
+            if (id == '\0component-ioc:build-component') return fs.readFileSync('./build-component.js', 'utf8');
             if (id !== '\0component-ioc:component-store') return;
 
             const cmps = Array.from(componentDefinitions).map(path => ({
@@ -54,11 +55,13 @@ export default function componentIoc(options = {}) {
             ];
 
             return `import { writable, get } from 'svelte/store';
+import buildComponent from '\0component-ioc:build-component';
 ${imports.join('\n')}
 const base = writable({
     ${props.join(',\n    ')}
 });
 const store = {
+    userSourceCode: {},
     subscribe: base.subscribe,
     get: () => get(base),
     replace(name, newCmp) {
@@ -66,6 +69,17 @@ const store = {
             store[name] = newCmp;
             return store;
         });
+    },
+    async replaceFromSource(name, source) {
+        store.userSourceCode[name] = source;
+        store.replace(name, await store.compile(name, source));
+    },
+    async lookupSource(name) {
+        let src = '';
+        src = store.userSourceCode[path];
+        // this lookup path is likely to be an issue in projects with custom setups
+        if (!src) src = (await fetch('/build' + path + '.svelte')).text();
+        return src;
     }
 };
 
