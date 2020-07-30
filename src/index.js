@@ -15,9 +15,13 @@ export default function componentIoc(options = {}) {
     return {
         name: 'component-ioc',
         buildStart() {
-            const pack = JSON.parse(fs.readFileSync(options.root + '/package.json', 'utf8'));
-            dependencyList = Object.keys(pack.dependencies);
-            dependencyList.push('svelte/internal');
+            if (options.dependencies === false) {
+                dependencyList = ['svelte/internal'];
+            } else {
+                const pack = JSON.parse(fs.readFileSync(options.root + '/package.json', 'utf8'));
+                dependencyList = Object.keys(pack.dependencies);
+                dependencyList.push('svelte/internal');
+            }
 
             const finder = findit(options.root);
             finder.on('file', file => {
@@ -29,21 +33,7 @@ export default function componentIoc(options = {}) {
             });
             return new Promise(resolve => finder.on('end', resolve));
         },
-        resolveId(id, importer) {
-            if (id == './App.svelte' && importer.endsWith('main.js')) {
-                return options.root + '/src/__dis-base-layout.svelte';
-            }
-            if (id == './StoreList.svelte' && importer.endsWith('__dis-base-layout.svelte')) {
-                return options.root + '/src/__dis-store-list-svelte';
-            }
-            if (id.startsWith('\0component-ioc')) return id;
-            return null;
-        },
         load(id) {
-            if (id == options.root + '/src/__dis-base-layout.svelte') return fs.readFileSync('./layoutFile.svelte', 'utf8');
-            if (id == options.root + '/src/__dis-store-list.svelte') return fs.readFileSync('./StoreList.svelte', 'utf8');
-            if (id == '\0component-ioc:utils') return fs.readFileSync('./utils.js', 'utf8');
-            if (id == '\0component-ioc:build-component') return fs.readFileSync('./browserBuild.js', 'utf8');
             if (id !== '\0component-ioc:component-store') return;
 
             const cmps = Array.from(componentDefinitions).map(path => ({
@@ -63,13 +53,14 @@ export default function componentIoc(options = {}) {
                 ...dependencyList.map(dependency => `'${dependency}': dep${depId++}`)
             ];
 
-            return `import { writable } from 'svelte/store';
+            return `import { writable, get } from 'svelte/store';
 ${imports.join('\n')}
 const base = writable({
     ${props.join(',\n    ')}
 });
 const store = {
     subscribe: base.subscribe,
+    get: () => get(base),
     replace(name, newCmp) {
         base.update(store => {
             store[name] = newCmp;
@@ -112,6 +103,7 @@ export default store;
 
             return {
                 code: src,
+                // should probably return a source map
                 map: null
             };
         },
