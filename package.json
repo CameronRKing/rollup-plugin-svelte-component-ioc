@@ -1,7 +1,7 @@
 {
   "name": "component-ioc",
   "version": "0.1.0",
-  "description": "Replaces direct references to svelte components with dynamic references fetched from a dependency store.\u001b[D\u001b[C\u001b[C\u001b[C\u001b[D\u001b[D",
+  "description": "Replaces direct references to svelte components with dynamic references fetched from a dependency store.",
   "main": "src/index.js",
   "scripts": {
     "test": "mocha -r esm"
