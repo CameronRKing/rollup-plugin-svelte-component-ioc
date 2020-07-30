@@ -4,7 +4,7 @@
   "description": "Replaces direct references to svelte components with dynamic references fetched from a dependency store.",
   "main": "src/index.js",
   "scripts": {
-    "test": "mocha -r esm"
+    "test": "mocha -r esm 'test/*.spec.js'"
   },
   "repository": {
     "type": "git",
@@ -22,13 +22,17 @@
   },
   "homepage": "https://github.com/CameronRKing/component-ioc#readme",
   "devDependencies": {
+    "@rollup/plugin-commonjs": "^14.0.0",
+    "@rollup/plugin-node-resolve": "^8.4.0",
     "@rollup/pluginutils": "^3.1.0",
     "chai": "^4.2.0",
     "esm": "^3.2.25",
     "mocha": "^8.0.1",
-    "rollup": "^2.23.0"
+    "rollup": "^2.23.0",
+    "rollup-plugin-svelte": "^5.2.3"
   },
   "dependencies": {
-    "findit": "^2.0.0"
+    "findit": "^2.0.0",
+    "svelte": "^3.24.0"
   }
 }

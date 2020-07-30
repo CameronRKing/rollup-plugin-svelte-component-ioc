@@ -26,15 +26,26 @@ export default function componentIoc(options = {}) {
             const finder = findit(options.root);
             finder.on('file', file => {
                 if (pathRelativeToRoot(file).startsWith('/public')) return;
-                if (file.endsWith('.svelte'))
-                    componentDefinitions.add(
-                        pathRelativeToRoot(file).replace('.svelte', '')
-                    );
+                if (!file.endsWith('.svelte')) return;
+
+                if (options.exposeSource) 
+                    this.emitFile({ 
+                        type: 'asset',
+                        source: fs.readFileSync(file, 'utf8'),
+                        fileName: pathRelativeToRoot(file).slice(1) 
+                    });                   
+                componentDefinitions.add(
+                    pathRelativeToRoot(file).replace('.svelte', '')
+                );
             });
             return new Promise(resolve => finder.on('end', resolve));
         },
+        resolveId(id, importer) {
+            if (id.startsWith('\0component-ioc:')) return id;
+        },
         load(id) {
-            if (id == '\0component-ioc:build-component') return fs.readFileSync('./build-component.js', 'utf8');
+            // ??? why must I include the ./src for it to find the file? It makes no sense
+            if (id == '\0component-ioc:build-component') return fs.readFileSync('./src/build-component.js', 'utf8');
             if (id !== '\0component-ioc:component-store') return;
 
             const cmps = Array.from(componentDefinitions).map(path => ({
@@ -72,13 +83,16 @@ const store = {
     },
     async replaceFromSource(name, source) {
         store.userSourceCode[name] = source;
-        store.replace(name, await store.compile(name, source));
+        store.replace(name, await buildComponent(name, source));
     },
     async lookupSource(name) {
-        let src = '';
-        src = store.userSourceCode[path];
-        // this lookup path is likely to be an issue in projects with custom setups
-        if (!src) src = (await fetch('/build' + path + '.svelte')).text();
+        let src = store.userSourceCode[name] || '';
+        if (!src) {
+            // this lookup path is likely to be an issue in projects with custom setups
+            const response = await fetch('/build' + name + '.svelte');
+            if (response.ok)
+                src = await response.text();
+        }
         return src;
     }
 };
@@ -96,10 +110,6 @@ export default store;
             let src = code;
             const replace = (...args) => src = src.replace(...args);
             const idPath = pathRelativeToRoot(id);
-
-            if (options.exposeSource) {
-                this.emitFile({ type: 'asset', source: code, fileName: idPath.slice(1) });
-            }
 
             replace('<script>', `<script>import __DIS__ from '\0component-ioc:component-store';`);
 

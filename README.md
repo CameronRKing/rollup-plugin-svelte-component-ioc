@@ -4,12 +4,6 @@ Replaces direct references to svelte components with dynamic references fetched 
 
 Svelte websites become editable by end-users by replacing component definitions at runtime.
 
-Adds `__DIS__` (**d**ependency **i**njection **s**tore) property to the window, which exposes three functions.
-
-- subscribe: the standard svelte/store subscribe method
-- get: the semantics of `get(window.__DIS__)`, but without having to import `get()` into the global scope
-- replace(name, componentConstructor): updates the given component definition
-
 ## Installation
 
 ```
@@ -37,3 +31,14 @@ export default {
 - root: *required*; the directory to use as a base to look for Svelte components
 - exposeSource: *optional*, **default: false**; whether to copy Svelte source files into the build folder
 - dependencies: *optional*, **default: true**; whether to include dependencies found in package.json in the store
+
+## Runtime usage
+
+Adds a `__DIS__` (**d**ependency **i**njection **s**tore) property to the window, which exposes several interesting properties.
+
+- `subscribe(cb)`: the standard svelte/store subscribe method
+- `get()`: the semantics of `get(window.__DIS__)`, but without having to import `svelte/store/get` yourself
+- `replace(name, value)`: updates the given definition
+- **async** `replaceFromSource(name, source)`: replaces the given definition after building the given source code, *including* transforming component imports to dependency injections
+- **async** `lookupSource(name)`: returns source code for the given name if it can, first looking in user-provided code, then checking the build directory (where source files will be if `exposeSource: true`)
+- `userSourceCode`: a plain object that maps `[name]: [source]` for user-provided code; mainly for internal use

@@ -1,4 +1,4 @@
-import svelte from 'svelte/compiler';
+import * as svelte from 'svelte/compiler';
 
 export default function buildComponent(fileName, code) {
     const transformed = transformComponent(fileName, code);    
