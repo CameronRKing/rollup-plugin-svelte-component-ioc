@@ -3,6 +3,11 @@ import fs from 'fs';
 import findit from 'findit'
 import { createFilter } from '@rollup/pluginutils';
 
+
+// export function registerDependency(path) {
+//     manuallyRegisteredDependencies.push(path);
+// }
+
 export default function componentIoc(options = {}) {
     const filter = createFilter(options.include, options.exclude);
 
@@ -10,10 +15,16 @@ export default function componentIoc(options = {}) {
         return str.replace(options.root, '').replace(/\\/g, '/');
     }
 
+    // these can probably be combined, but I'll leave them alone for now
+    // in case it's every useful to know where a dependency came from
     const componentDefinitions = new Set();
     let dependencyList;
+    const manuallyRegisteredDependencies = [];
     return {
         name: 'component-ioc',
+        registerDependency(path) {
+            manuallyRegisteredDependencies.push(path);
+        },
         buildStart() {
             if (options.dependencies === false) {
                 dependencyList = ['svelte/internal'];
@@ -32,8 +43,9 @@ export default function componentIoc(options = {}) {
                     this.emitFile({ 
                         type: 'asset',
                         source: fs.readFileSync(file, 'utf8'),
-                        fileName: pathRelativeToRoot(file).slice(1) 
-                    });                   
+                        fileName: pathRelativeToRoot(file).slice(1) // ignore starting slash
+                    });
+
                 componentDefinitions.add(
                     pathRelativeToRoot(file).replace('.svelte', '')
                 );
@@ -44,8 +56,7 @@ export default function componentIoc(options = {}) {
             if (id.startsWith('\0component-ioc:')) return id;
         },
         load(id) {
-            // ??? why must I include the ./src for it to find the file? It makes no sense
-            if (id == '\0component-ioc:build-component') return fs.readFileSync('./src/build-component.js', 'utf8');
+            if (id == '\0component-ioc:build-component') return fs.readFileSync(path.resolve(__dirname, './build-component.js'), 'utf8');
             if (id !== '\0component-ioc:component-store') return;
 
             const cmps = Array.from(componentDefinitions).map(path => ({
@@ -56,13 +67,15 @@ export default function componentIoc(options = {}) {
             let depId = 0;
             const imports = [
                 ...cmps.map(({ name, file }) => `import ${name} from '${file}';`),
-                ...dependencyList.map(dependency => `import * as dep${depId++} from '${dependency}';`)
+                ...dependencyList.map(dependency => `import * as dep${depId++} from '${dependency}';`),
+                ...manuallyRegisteredDependencies.map(path => `import * as ${depId++} from '${path}';`),
             ];
 
             depId = 0;
             const props = [
                 ...cmps.map(({ path, name }) => `'${path}': ${name}`),
-                ...dependencyList.map(dependency => `'${dependency}': dep${depId++}`)
+                ...dependencyList.map(dependency => `'${dependency}': dep${depId++}`),
+                ...manuallyRegisteredDependencies.map(path => `'${path}': dep${depId++}`)
             ];
 
             return `import { writable, get } from 'svelte/store';
@@ -113,10 +126,14 @@ export default store;
 
             replace('<script>', `<script>import __DIS__ from '\0component-ioc:component-store';`);
 
+
             // replace imports of svelte components with dependency store injections
             let match;
-            while (match = src.match(/import (\w+) from ['"]([^'"]*)\.svelte['"]/)) {
+            while (match = src.match(/(?<!\/\*\* @ioc-ignore \*\/\n)import (\w+) from ['"]([^'"]*)\.svelte['"]/)) {
                 const [str, cmpName, relativePath] = match;
+
+                // if (src.slice(0, src.indexOf(str)).endsWith('/** @ioc-ignore */\n')) continue;
+
                 const importId = path.posix.resolve(path.dirname(idPath), relativePath);
                 replace(str, `$: ${cmpName} = $__DIS__['${importId}']`);
             }

@@ -1,6 +1,6 @@
 import fs from 'fs';
 import { expect } from 'chai';
-import componentIoc from '..';
+import componentIoc from '../src/index.js';
 import path from 'path';
 import * as rollup from 'rollup';
 import svelte from 'rollup-plugin-svelte';
@@ -45,6 +45,20 @@ describe('build transformations', () => {
             <OtherCmp attr={not affected }/>`, root + '\\src\\DoesntMatterForThisTest.svelte');
         expect(newSrc.code).to.equal(`<svelte:component this={MyCmp} attr={not affected}></svelte:component>
             <svelte:component this={OtherCmp} attr={not affected }/>`);
+    });
+
+    it('ignores imports that are marked with /** @ioc-ignore */ (but still transforms the component references)', async () => {
+        const newSrc = plugin.transform(`<script>
+/** @ioc-ignore */
+import MyCmp from './MyCmp.svelte';
+import TransformMe from './TransformMe.svelte';
+</script>
+
+<MyCmp />
+<TransformMe />`, root + '\\Cmp.svelte');
+
+        expect(newSrc.code).to.include(`import MyCmp from './MyCmp.svelte';`);
+        expect(newSrc.code).to.include(`<svelte:component this={MyCmp} />`);
     });
 
     it('exposes source files in the build if `exposeSource` is set to true', async () => {

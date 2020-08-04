@@ -2,8 +2,10 @@
   "name": "rollup-plugin-svelte-component-ioc",
   "version": "0.1.0",
   "description": "Replaces direct references to svelte components with dynamic references fetched from a dependency store.",
-  "main": "src/index.js",
+  "main": "dist/index.js",
+  "module": "dist/index.es.js",
   "scripts": {
+    "build": "rollup -c",
     "test": "mocha -r esm 'test/*.spec.js'"
   },
   "repository": {
