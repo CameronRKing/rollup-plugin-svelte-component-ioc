@@ -129,10 +129,8 @@ export default store;
 
             // replace imports of svelte components with dependency store injections
             let match;
-            while (match = src.match(/(?<!\/\*\* @ioc-ignore \*\/\n)import (\w+) from ['"]([^'"]*)\.svelte['"]/)) {
+            while (match = src.match(/(?<!\/\*\* @ioc-ignore \*\/\s*)import (\w+) from ['"]([^'"]*)\.svelte['"]/)) {
                 const [str, cmpName, relativePath] = match;
-
-                // if (src.slice(0, src.indexOf(str)).endsWith('/** @ioc-ignore */\n')) continue;
 
                 const importId = path.posix.resolve(path.dirname(idPath), relativePath);
                 replace(str, `$: ${cmpName} = $__DIS__['${importId}']`);
