@@ -4,10 +4,6 @@ import findit from 'findit'
 import { createFilter } from '@rollup/pluginutils';
 
 
-// export function registerDependency(path) {
-//     manuallyRegisteredDependencies.push(path);
-// }
-
 export default function componentIoc(options = {}) {
     const filter = createFilter(options.include, options.exclude);
 
@@ -19,14 +15,10 @@ export default function componentIoc(options = {}) {
     // in case it's every useful to know where a dependency came from
     const componentDefinitions = new Set();
     let dependencyList;
-    const manuallyRegisteredDependencies = [];
     return {
         name: 'component-ioc',
-        registerDependency(path) {
-            manuallyRegisteredDependencies.push(path);
-        },
         buildStart() {
-            if (options.dependencies === false) {
+            if (options.includeDependencies === false) {
                 dependencyList = ['svelte/internal'];
             } else {
                 const pack = JSON.parse(fs.readFileSync(options.root + '/package.json', 'utf8'));
@@ -64,18 +56,28 @@ export default function componentIoc(options = {}) {
                 name: path.replace(/\//g, ''),
                 file: '.' + path + '.svelte'
             }));
+
+            const extraDeps = options.extraDependencies || {};
+            const importedExtras = Object.keys(extraDeps)
+                .filter(key => extraDeps[key].type == 'import')
+                .map(key => [key, extraDeps[key]]);
+            const literalExtras = Object.keys(extraDeps)
+                .filter(key => extraDeps[key].type == 'code')
+                .map(key => [key, extraDeps[key]]);
+
             let depId = 0;
             const imports = [
                 ...cmps.map(({ name, file }) => `import ${name} from '${file}';`),
                 ...dependencyList.map(dependency => `import * as dep${depId++} from '${dependency}';`),
-                ...manuallyRegisteredDependencies.map(path => `import * as ${depId++} from '${path}';`),
+                ...importedExtras.map(([_, { path }]) => `import * as dep${depId++} from '${path}';`),
             ];
 
             depId = 0;
             const props = [
                 ...cmps.map(({ path, name }) => `'${path}': ${name}`),
                 ...dependencyList.map(dependency => `'${dependency}': dep${depId++}`),
-                ...manuallyRegisteredDependencies.map(path => `'${path}': dep${depId++}`)
+                ...importedExtras.map(([key]) => `'${key}': dep${depId++}`),
+                ...literalExtras.map(([key, { code }]) => `'${key}': ${code}`)
             ];
 
             return `import { writable, get } from 'svelte/store';

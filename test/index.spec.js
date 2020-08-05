@@ -11,24 +11,38 @@ const root = path.dirname(__dirname);
 const plugin = componentIoc({ root });
 
 describe('build transformations', () => {
+    async function getStore(ioc) {
+        await ioc.buildStart();
+        return ioc.load('\0component-ioc:component-store');
+    }
+
     it('builds a component dependency store by looking for svelte components in the given root folder', async () => {
-        await plugin.buildStart();
-        const storeDefinition = plugin.load('\0component-ioc:component-store');
+        const storeDefinition = await getStore(plugin);
         expect(storeDefinition).to.include(`import testExample from './test/Example.svelte';`);
         expect(storeDefinition).to.include("'/test/Example': testExample");
     });
 
     it('includes dependencies found in package.json by default', async () => {
-        await plugin.buildStart();
-        const storeDefinition = plugin.load('\0component-ioc:component-store');
+        const storeDefinition = await getStore(plugin);
         expect(storeDefinition).to.include(`import * as dep0 from 'findit';`);
         expect(storeDefinition).to.include(`'findit': dep0`);
     });
 
+    it('includes dependencies passed in through the `extraDependencies` option', async () => {
+        const extraDependencies = {
+            'extra/1': { type: 'import', path: 'extra-dep' },
+            'extra/2': { type: 'code', code: '() => console.log("I work!")' }
+        };
+        const extras = componentIoc({ root, extraDependencies, includeDependencies: false });
+        const storeDefinition = await getStore(extras);
+        expect(storeDefinition).to.include(`import * as dep1 from 'extra-dep'`);
+        expect(storeDefinition).to.include(`'extra/1': dep1`);
+        expect(storeDefinition).to.include(`'extra/2': () => console.log("I work!")`);
+    });
+
     it(`won't include dependencies if the dependencies option is false`, async () => {
-        const justCmps = componentIoc({ root, dependencies: false });
-        await justCmps.buildStart();
-        const storeDefinition = justCmps.load('\0component-ioc:component-store');
+        const justCmps = componentIoc({ root, includeDependencies: false });
+        const storeDefinition = await getStore(justCmps);
         expect(storeDefinition).not.to.include(`import * as dep0 from 'findit';`);
         expect(storeDefinition).not.to.include(`'findit': dep0`);
     })
@@ -64,7 +78,7 @@ import TransformMe from './TransformMe.svelte';
     it('exposes source files in the build if `exposeSource` is set to true', async () => {
         const bundle = await rollup.rollup({
             input: 'test/basic-rollup-input.js',
-            plugins: [componentIoc({ root: __dirname, exposeSource: true, dependencies: false })]
+            plugins: [componentIoc({ root: __dirname, exposeSource: true, includeDependencies: false })]
         });
 
         const { output } = await bundle.generate({ format: 'es' });
@@ -79,7 +93,7 @@ import TransformMe from './TransformMe.svelte';
     it('excludes source files from the build by default', async () => {
         const bundle = await rollup.rollup({
             input: 'test/basic-rollup-input.js',
-            plugins: [componentIoc({ root: __dirname, dependencies: false })]
+            plugins: [componentIoc({ root: __dirname, includeDependencies: false })]
         });
 
         const { output } = await bundle.generate({ format: 'es' });
@@ -102,7 +116,7 @@ describe('browser behavior', function() {
         const bundle = await rollup.rollup({
             input: 'test/store-rollup-input.js',
             plugins: [
-                componentIoc({ root: path.dirname(__dirname), dependencies: false }),
+                componentIoc({ root: path.dirname(__dirname), includeDependencies: false }),
                 svelte(),
                 resolve(),
                 commonjs(),
