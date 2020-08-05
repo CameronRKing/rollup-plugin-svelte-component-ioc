@@ -30,13 +30,16 @@ describe('build transformations', () => {
 
     it('includes dependencies passed in through the `extraDependencies` option', async () => {
         const extraDependencies = {
-            'extra/1': { type: 'import', path: 'extra-dep' },
+            'extra/0': { type: 'import', path: 'extra-dep' },
+            'extra/1': { type: 'import', path: 'other-dep', defaultOnly: true },
             'extra/2': { type: 'code', code: '() => console.log("I work!")' }
         };
         const extras = componentIoc({ root, extraDependencies, includeDependencies: false });
         const storeDefinition = await getStore(extras);
         expect(storeDefinition).to.include(`import * as dep1 from 'extra-dep'`);
-        expect(storeDefinition).to.include(`'extra/1': dep1`);
+        expect(storeDefinition).to.include(`import dep2 from 'other-dep'`);
+        expect(storeDefinition).to.include(`'extra/0': dep1`);
+        expect(storeDefinition).to.include(`'extra/1': dep2`);
         expect(storeDefinition).to.include(`'extra/2': () => console.log("I work!")`);
     });
 

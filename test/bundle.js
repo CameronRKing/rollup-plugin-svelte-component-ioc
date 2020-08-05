@@ -35,6 +35,9 @@
     function not_equal(a, b) {
         return a != a ? b == b : a !== b;
     }
+    function is_empty(obj) {
+        return Object.keys(obj).length === 0;
+    }
     function validate_store(store, name) {
         if (store != null && typeof store.subscribe !== 'function') {
             throw new Error(`'${name}' is not a store with a 'subscribe' method`);
@@ -1428,14 +1431,15 @@
             context: new Map(parent_component ? parent_component.$$.context : []),
             // everything else
             callbacks: blank_object(),
-            dirty
+            dirty,
+            skip_bound: false
         };
         let ready = false;
         $$.ctx = instance
             ? instance(component, prop_values, (i, ret, ...rest) => {
                 const value = rest.length ? rest[0] : ret;
                 if ($$.ctx && not_equal($$.ctx[i], $$.ctx[i] = value)) {
-                    if ($$.bound[i])
+                    if (!$$.skip_bound && $$.bound[i])
                         $$.bound[i](value);
                     if (ready)
                         make_dirty(component, i);
@@ -1497,8 +1501,12 @@
                         callbacks.splice(index, 1);
                 };
             }
-            $set() {
-                // overridden by instance, if it has props
+            $set($$props) {
+                if (this.$$set && !is_empty($$props)) {
+                    this.$$.skip_bound = true;
+                    this.$$set($$props);
+                    this.$$.skip_bound = false;
+                }
             }
         };
     }
@@ -1516,13 +1524,17 @@
                     callbacks.splice(index, 1);
             };
         }
-        $set() {
-            // overridden by instance, if it has props
+        $set($$props) {
+            if (this.$$set && !is_empty($$props)) {
+                this.$$.skip_bound = true;
+                this.$$set($$props);
+                this.$$.skip_bound = false;
+            }
         }
     }
 
     function dispatch_dev(type, detail) {
-        document.dispatchEvent(custom_event(type, Object.assign({ version: '3.24.0' }, detail)));
+        document.dispatchEvent(custom_event(type, Object.assign({ version: '3.24.1' }, detail)));
     }
     function append_dev(target, node) {
         dispatch_dev("SvelteDOMInsert", { target, node });
@@ -1714,6 +1726,7 @@
         invalid_attribute_name_character: invalid_attribute_name_character,
         is_client: is_client,
         is_crossorigin: is_crossorigin,
+        is_empty: is_empty,
         is_function: is_function,
         is_promise: is_promise,
         listen: listen,
@@ -16525,22 +16538,34 @@
     	        parser.eat('>', true);
     	        // close any elements that don't have their own closing tags, e.g. <div><p></div>
     	        while (parent.name !== name) {
-    	            if (parent.type !== 'Element')
+    	            if (parent.type !== 'Element') {
+    	                const message = parser.last_auto_closed_tag && parser.last_auto_closed_tag.tag === name
+    	                    ? `</${name}> attempted to close <${name}> that was already automatically closed by <${parser.last_auto_closed_tag.reason}>`
+    	                    : `</${name}> attempted to close an element that was not open`;
     	                parser.error({
     	                    code: `invalid-closing-tag`,
-    	                    message: `</${name}> attempted to close an element that was not open`
+    	                    message
     	                }, start);
+    	            }
     	            parent.end = start;
     	            parser.stack.pop();
     	            parent = parser.current();
     	        }
     	        parent.end = parser.index;
     	        parser.stack.pop();
+    	        if (parser.last_auto_closed_tag && parser.stack.length < parser.last_auto_closed_tag.depth) {
+    	            parser.last_auto_closed_tag = null;
+    	        }
     	        return;
     	    }
     	    else if (closing_tag_omitted(parent.name, name)) {
     	        parent.end = start;
     	        parser.stack.pop();
+    	        parser.last_auto_closed_tag = {
+    	            tag: parent.name,
+    	            reason: name,
+    	            depth: parser.stack.length,
+    	        };
     	    }
     	    const unique_names = new Set();
     	    let attribute;
@@ -18576,6 +18601,17 @@
 					${each_block_else}.m(${initial_mount_node}, ${initial_anchor_node});
 				}
 			`);
+    	            const has_transitions = !!(this.else.block.has_intro_method || this.else.block.has_outro_method);
+    	            const destroy_block_else = this.else.block.has_outro_method
+    	                ? b `
+					@group_outros();
+					@transition_out(${each_block_else}, 1, 1, () => {
+						${each_block_else} = null;
+					});
+					@check_outros();`
+    	                : b `
+					${each_block_else}.d(1);
+					${each_block_else} = null;`;
     	            if (this.else.block.has_update_method) {
     	                this.updates.push(b `
 					if (!${this.vars.data_length} && ${each_block_else}) {
@@ -18583,10 +18619,10 @@
 					} else if (!${this.vars.data_length}) {
 						${each_block_else} = ${this.else.block.name}(#ctx);
 						${each_block_else}.c();
+						${has_transitions && b `@transition_in(${each_block_else}, 1);`}
 						${each_block_else}.m(${update_mount_node}, ${update_anchor_node});
 					} else if (${each_block_else}) {
-						${each_block_else}.d(1);
-						${each_block_else} = null;
+						${destroy_block_else};
 					}
 				`);
     	            }
@@ -18594,12 +18630,12 @@
     	                this.updates.push(b `
 					if (${this.vars.data_length}) {
 						if (${each_block_else}) {
-							${each_block_else}.d(1);
-							${each_block_else} = null;
+							${destroy_block_else};
 						}
 					} else if (!${each_block_else}) {
 						${each_block_else} = ${this.else.block.name}(#ctx);
 						${each_block_else}.c();
+						${has_transitions && b `@transition_in(${each_block_else}, 1);`}
 						${each_block_else}.m(${update_mount_node}, ${update_anchor_node});
 					}
 				`);
@@ -19418,9 +19454,12 @@
     	function mark_each_block_bindings(parent, binding) {
     	    // we need to ensure that the each block creates a context including
     	    // the list and the index, if they're not otherwise referenced
-    	    const object = get_object(binding.expression.node).name;
-    	    const each_block = parent.node.scope.get_owner(object);
-    	    each_block.has_binding = true;
+    	    binding.expression.references.forEach(name => {
+    	        const each_block = parent.node.scope.get_owner(name);
+    	        if (each_block) {
+    	            each_block.has_binding = true;
+    	        }
+    	    });
     	    if (binding.name === "group") {
     	        // for `<input bind:group={} >`, we make sure that all the each blocks creates context with `index`
     	        for (const name of binding.expression.contextual_dependencies) {
@@ -20084,6 +20123,7 @@
     	    // todo: owner type
     	    constructor(component, owner, template_scope, info, lazy) {
     	        this.type = 'Expression';
+    	        this.references = new Set();
     	        this.dependencies = new Set();
     	        this.contextual_dependencies = new Set();
     	        this.declarations = [];
@@ -20097,7 +20137,7 @@
     	        this.node = info;
     	        this.template_scope = template_scope;
     	        this.owner = owner;
-    	        const { dependencies, contextual_dependencies } = this;
+    	        const { dependencies, contextual_dependencies, references } = this;
     	        let { map, scope } = create_scopes(info);
     	        this.scope = scope;
     	        this.scope_map = map;
@@ -20117,6 +20157,7 @@
     	                }
     	                if (isReference(node, parent)) {
     	                    const { name, nodes } = flatten_reference(node);
+    	                    references.add(name);
     	                    if (scope.has(name))
     	                        return;
     	                    if (name[0] === '$') {
@@ -22049,7 +22090,7 @@
 						${name} = null;
 					}
 				} else if (${switch_value}) {
-					${updates.length && b `${name}.$set(${name_changes});`}
+					${updates.length > 0 && b `${name}.$set(${name_changes});`}
 				}
 			`);
     	            block.chunks.intro.push(b `
@@ -22165,12 +22206,7 @@
     	                        });
     	                    }
     	                });
-    	                const dynamic_dependencies = Array.from(attribute.dependencies).filter(name => {
-    	                    if (this.node.scope.is_let(name))
-    	                        return true;
-    	                    const variable = renderer.component.var_lookup.get(name);
-    	                    return is_dynamic$1(variable);
-    	                });
+    	                const dynamic_dependencies = Array.from(attribute.dependencies).filter((name) => this.is_dependency_dynamic(name));
     	                if (dynamic_dependencies.length > 0) {
     	                    changes.properties.push(p `${attribute.name}: ${renderer.dirty(dynamic_dependencies)}`);
     	                }
@@ -22211,17 +22247,9 @@
 		`);
     	        block.chunks.intro.push(b `@transition_in(${slot_or_fallback}, #local);`);
     	        block.chunks.outro.push(b `@transition_out(${slot_or_fallback}, #local);`);
-    	        const is_dependency_dynamic = name => {
-    	            if (name === '$$scope')
-    	                return true;
-    	            if (this.node.scope.is_let(name))
-    	                return true;
-    	            const variable = renderer.component.var_lookup.get(name);
-    	            return is_dynamic$1(variable);
-    	        };
-    	        const dynamic_dependencies = Array.from(this.dependencies).filter(is_dependency_dynamic);
+    	        const dynamic_dependencies = Array.from(this.dependencies).filter((name) => this.is_dependency_dynamic(name));
     	        const fallback_dynamic_dependencies = has_fallback
-    	            ? Array.from(this.fallback.dependencies).filter(is_dependency_dynamic)
+    	            ? Array.from(this.fallback.dependencies).filter((name) => this.is_dependency_dynamic(name))
     	            : [];
     	        const slot_update = b `
 			if (${slot}.p && ${renderer.dirty(dynamic_dependencies)}) {
@@ -22250,6 +22278,16 @@
 			`);
     	        }
     	        block.chunks.destroy.push(b `if (${slot_or_fallback}) ${slot_or_fallback}.d(detaching);`);
+    	    }
+    	    is_dependency_dynamic(name) {
+    	        if (name === '$$scope')
+    	            return true;
+    	        if (this.node.scope.is_let(name))
+    	            return true;
+    	        if (is_reserved_keyword(name))
+    	            return true;
+    	        const variable = this.renderer.component.var_lookup.get(name);
+    	        return is_dynamic$1(variable);
     	    }
     	}
 
@@ -23120,7 +23158,7 @@
 
 				${component.partly_hoisted}
 
-				${set && b `$$self.$set = ${set};`}
+				${set && b `$$self.$$set = ${set};`}
 
 				${capture_state && b `$$self.$capture_state = ${capture_state};`}
 
@@ -26167,7 +26205,7 @@
     	        this.expression = new Expression(component, this, scope, info.expression);
     	        this.raw_expression = JSON.parse(JSON.stringify(info.expression));
     	        const { name } = get_object(this.expression.node);
-    	        this.is_contextual = scope.names.has(name);
+    	        this.is_contextual = Array.from(this.expression.references).some(name => scope.names.has(name));
     	        // make sure we track this as a mutable ref
     	        if (scope.is_let(name)) {
     	            component.error(this, {
@@ -26175,7 +26213,7 @@
     	                message: 'Cannot bind to a variable declared with the let: directive'
     	            });
     	        }
-    	        else if (this.is_contextual) {
+    	        else if (scope.names.has(name)) {
     	            if (scope.is_await(name)) {
     	                component.error(this, {
     	                    code: 'invalid-binding',
@@ -26385,6 +26423,16 @@
     	const a11y_no_onchange = new Set([
     	    'select',
     	    'option'
+    	]);
+    	const a11y_labelable = new Set([
+    	    "button",
+    	    "input",
+    	    "keygen",
+    	    "meter",
+    	    "output",
+    	    "progress",
+    	    "select",
+    	    "textarea"
     	]);
     	const invisible_elements = new Set(['meta', 'html', 'script', 'style']);
     	const valid_modifiers = new Set([
@@ -26756,6 +26804,31 @@
     	                        message: `A11y: Screenreaders already announce <img> elements as an image.`
     	                    });
     	                }
+    	            }
+    	        }
+    	        if (this.name === 'label') {
+    	            const has_input_child = this.children.some(i => (i instanceof Element$1 && a11y_labelable.has(i.name)));
+    	            if (!attribute_map.has('for') && !has_input_child) {
+    	                component.warn(this, {
+    	                    code: `a11y-label-has-associated-control`,
+    	                    message: `A11y: A form label must be associated with a control.`
+    	                });
+    	            }
+    	        }
+    	        if (this.is_media_node()) {
+    	            if (attribute_map.has('muted')) {
+    	                return;
+    	            }
+    	            let has_caption;
+    	            const track = this.children.find((i) => i.name === 'track');
+    	            if (track) {
+    	                has_caption = track.attributes.find(a => a.name === 'kind' && a.get_static_value() === 'captions');
+    	            }
+    	            if (!has_caption) {
+    	                component.warn(this, {
+    	                    code: `a11y-media-has-caption`,
+    	                    message: `A11y: Media elements must have a <track kind="captions">`
+    	                });
     	            }
     	        }
     	        if (a11y_no_onchange.has(this.name)) {
@@ -27412,7 +27485,7 @@
     	}
 
     	// This file is automatically generated
-    	var internal_exports = new Set(["HtmlTag", "SvelteComponent", "SvelteComponentDev", "SvelteElement", "action_destroyer", "add_attribute", "add_classes", "add_flush_callback", "add_location", "add_render_callback", "add_resize_listener", "add_transform", "afterUpdate", "append", "append_dev", "assign", "attr", "attr_dev", "beforeUpdate", "bind", "binding_callbacks", "blank_object", "bubble", "check_outros", "children", "claim_component", "claim_element", "claim_space", "claim_text", "clear_loops", "component_subscribe", "compute_rest_props", "createEventDispatcher", "create_animation", "create_bidirectional_transition", "create_component", "create_in_transition", "create_out_transition", "create_slot", "create_ssr_component", "current_component", "custom_event", "dataset_dev", "debug", "destroy_block", "destroy_component", "destroy_each", "detach", "detach_after_dev", "detach_before_dev", "detach_between_dev", "detach_dev", "dirty_components", "dispatch_dev", "each", "element", "element_is", "empty", "escape", "escaped", "exclude_internal_props", "fix_and_destroy_block", "fix_and_outro_and_destroy_block", "fix_position", "flush", "getContext", "get_binding_group_value", "get_current_component", "get_slot_changes", "get_slot_context", "get_spread_object", "get_spread_update", "get_store_value", "globals", "group_outros", "handle_promise", "has_prop", "identity", "init", "insert", "insert_dev", "intros", "invalid_attribute_name_character", "is_client", "is_crossorigin", "is_function", "is_promise", "listen", "listen_dev", "loop", "loop_guard", "missing_component", "mount_component", "noop", "not_equal", "now", "null_to_empty", "object_without_properties", "onDestroy", "onMount", "once", "outro_and_destroy_block", "prevent_default", "prop_dev", "query_selector_all", "raf", "run", "run_all", "safe_not_equal", "schedule_update", "select_multiple_value", "select_option", "select_options", "select_value", "self", "setContext", "set_attributes", "set_current_component", "set_custom_element_data", "set_data", "set_data_dev", "set_input_type", "set_input_value", "set_now", "set_raf", "set_store_value", "set_style", "set_svg_attributes", "space", "spread", "stop_propagation", "subscribe", "svg_element", "text", "tick", "time_ranges_to_array", "to_number", "toggle_class", "transition_in", "transition_out", "update_keyed_each", "update_slot", "validate_component", "validate_each_argument", "validate_each_keys", "validate_slots", "validate_store", "xlink_attr"]);
+    	var internal_exports = new Set(["HtmlTag", "SvelteComponent", "SvelteComponentDev", "SvelteElement", "action_destroyer", "add_attribute", "add_classes", "add_flush_callback", "add_location", "add_render_callback", "add_resize_listener", "add_transform", "afterUpdate", "append", "append_dev", "assign", "attr", "attr_dev", "beforeUpdate", "bind", "binding_callbacks", "blank_object", "bubble", "check_outros", "children", "claim_component", "claim_element", "claim_space", "claim_text", "clear_loops", "component_subscribe", "compute_rest_props", "createEventDispatcher", "create_animation", "create_bidirectional_transition", "create_component", "create_in_transition", "create_out_transition", "create_slot", "create_ssr_component", "current_component", "custom_event", "dataset_dev", "debug", "destroy_block", "destroy_component", "destroy_each", "detach", "detach_after_dev", "detach_before_dev", "detach_between_dev", "detach_dev", "dirty_components", "dispatch_dev", "each", "element", "element_is", "empty", "escape", "escaped", "exclude_internal_props", "fix_and_destroy_block", "fix_and_outro_and_destroy_block", "fix_position", "flush", "getContext", "get_binding_group_value", "get_current_component", "get_slot_changes", "get_slot_context", "get_spread_object", "get_spread_update", "get_store_value", "globals", "group_outros", "handle_promise", "has_prop", "identity", "init", "insert", "insert_dev", "intros", "invalid_attribute_name_character", "is_client", "is_crossorigin", "is_empty", "is_function", "is_promise", "listen", "listen_dev", "loop", "loop_guard", "missing_component", "mount_component", "noop", "not_equal", "now", "null_to_empty", "object_without_properties", "onDestroy", "onMount", "once", "outro_and_destroy_block", "prevent_default", "prop_dev", "query_selector_all", "raf", "run", "run_all", "safe_not_equal", "schedule_update", "select_multiple_value", "select_option", "select_options", "select_value", "self", "setContext", "set_attributes", "set_current_component", "set_custom_element_data", "set_data", "set_data_dev", "set_input_type", "set_input_value", "set_now", "set_raf", "set_store_value", "set_style", "set_svg_attributes", "space", "spread", "stop_propagation", "subscribe", "svg_element", "text", "tick", "time_ranges_to_array", "to_number", "toggle_class", "transition_in", "transition_out", "update_keyed_each", "update_slot", "validate_component", "validate_each_argument", "validate_each_keys", "validate_slots", "validate_store", "xlink_attr"]);
 
     	function is_used_as_reference(node, parent) {
     	    if (!isReference(node, parent)) {
@@ -27602,7 +27675,7 @@
     	        if (result) {
     	            const { compile_options, name } = this;
     	            const { format = 'esm' } = compile_options;
-    	            const banner = `${this.file ? `${this.file} ` : ``}generated by Svelte v${'3.24.0'}`;
+    	            const banner = `${this.file ? `${this.file} ` : ``}generated by Svelte v${'3.24.1'}`;
     	            const program = { type: 'Program', body: result.js };
     	            walk(program, {
     	                enter: (node, parent, key) => {
@@ -28823,7 +28896,7 @@
     	    };
     	}
 
-    	const VERSION = '3.24.0';
+    	const VERSION = '3.24.1';
 
     	exports.VERSION = VERSION;
     	exports.compile = compile;
@@ -28887,7 +28960,7 @@
         });
     }
 
-    /* test\Example.svelte generated by Svelte v3.24.0 */
+    /* test\Example.svelte generated by Svelte v3.24.1 */
 
     function create_fragment(ctx) {
     	let switch_instance;

@@ -69,7 +69,7 @@ export default function componentIoc(options = {}) {
             const imports = [
                 ...cmps.map(({ name, file }) => `import ${name} from '${file}';`),
                 ...dependencyList.map(dependency => `import * as dep${depId++} from '${dependency}';`),
-                ...importedExtras.map(([_, { path }]) => `import * as dep${depId++} from '${path}';`),
+                ...importedExtras.map(([_, { path, defaultOnly }]) => `import ${defaultOnly ? '' : '* as '}dep${depId++} from '${path}';`),
             ];
 
             depId = 0;
