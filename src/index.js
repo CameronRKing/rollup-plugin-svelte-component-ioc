@@ -96,7 +96,7 @@ const store = {
             return store;
         });
     },
-    async replaceFromSource(name, source) {
+    async replaceComponent(name, source) {
         store.userSourceCode[name] = source;
         store.replace(name, await buildComponent(name, source));
     },
@@ -107,6 +107,9 @@ const store = {
             const response = await fetch('/build' + name + '.svelte');
             if (response.ok)
                 src = await response.text();
+        }
+        if (!src && typeof store.get()[name] == 'function') {
+            return store.get()[name].toString();
         }
         return src;
     }

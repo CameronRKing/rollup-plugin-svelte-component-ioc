@@ -127,8 +127,6 @@ describe('browser behavior', function() {
         });
         const { output } = await bundle.generate({ format: 'iife' });
 
-        fs.writeFileSync('test/bundle.js', output[0].code);
-
         let self = {};
         let fetch = (arg) => { return doFetch(arg); };
         // sure, it's a little hacky, but it gives me confidence that my code works
@@ -158,7 +156,7 @@ describe('browser behavior', function() {
 
     it('replaces a component definition from source code', async () => {
         const oldCmp = wwindow.__DIS__.get()['/Example'];
-        await wwindow.__DIS__.replaceFromSource('/Example', '<script>console.log("New component");</script>');
+        await wwindow.__DIS__.replaceComponent('/Example', '<script>console.log("New component");</script>');
         expect(wwindow.__DIS__.userSourceCode['/Example']).to.equal('<script>console.log("New component");</script>');
         expect(wwindow.__DIS__.get()['/Example']).not.to.equal(oldCmp);
     });
@@ -179,5 +177,10 @@ describe('browser behavior', function() {
     it('looks up source code for a component definition, returning an empty string if no source is available', async () => {
         doFetch = () => ({ ok: false, text: () => Promise.resolve('shouldnt see this') });
         expect(await wwindow.__DIS__.lookupSource('/CantFind')).to.equal('');
+    });
+
+    it('looks up source code for a store definition, returning fn.toString() if the definition is a function', async () => {
+        wwindow.__DIS__.replace('/fn-example', () => 'the function has been stringified');
+        expect(await wwindow.__DIS__.lookupSource('/fn-example')).to.equal(`() => 'the function has been stringified'`);
     });
 });
