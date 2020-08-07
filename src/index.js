@@ -19,11 +19,12 @@ export default function componentIoc(options = {}) {
         name: 'component-ioc',
         buildStart() {
             if (options.includeDependencies === false) {
-                dependencyList = ['svelte/internal'];
+                dependencyList = ['svelte/internal', 'svelte'];
             } else {
                 const pack = JSON.parse(fs.readFileSync(options.root + '/package.json', 'utf8'));
                 dependencyList = Object.keys(pack.dependencies);
                 dependencyList.push('svelte/internal');
+                dependencyList.push('svelte');
             }
 
             const finder = findit(options.root);
