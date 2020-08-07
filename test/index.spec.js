@@ -93,6 +93,41 @@ import TransformMe from './TransformMe.svelte';
         expect(containsSource).to.be.true;
     });
 
+    it('also exposes the source of extraDependencies is `exposeSource` is set to true', async function() {
+        this.timeout(5000);
+        const extraDependencies = {
+            'example': { type: 'import', path: 'test/Example.js', defaultOnly: true }
+        };
+        const exampleSrc = 'export default "It works!";';
+
+        const bundle = await rollup.rollup({
+            input: 'test/store-rollup-input.js',
+            plugins: [
+                {
+                    resolveId(id) {
+                        if (id == 'test/Example.js') return id;
+                    },
+                    load(id) {
+                        if (id !== 'test/Example.js') return;
+                        return exampleSrc;
+                    }
+                },
+                componentIoc({ root: path.dirname(__dirname), exposeSource: true, includeDependencies: false, extraDependencies }),
+                svelte(),
+                resolve(),
+                commonjs(),
+            ]
+        });
+
+        const { output } = await bundle.generate({ format: 'es' });
+
+        const containsSource = output.some(chunk =>
+            chunk.fileName == 'test/Example.js'
+            && chunk.source == exampleSrc
+        )
+        expect(containsSource).to.be.true;
+    });
+
     it('excludes source files from the build by default', async () => {
         const bundle = await rollup.rollup({
             input: 'test/basic-rollup-input.js',

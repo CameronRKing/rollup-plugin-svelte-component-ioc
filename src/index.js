@@ -31,6 +31,8 @@ export default function componentIoc(options = {}) {
                 if (pathRelativeToRoot(file).startsWith('/public')) return;
                 if (!file.endsWith('.svelte')) return;
 
+                // source files to be exposed from the `extraDependencies` option will be emitted in transform(),
+                // since we don't know where the source may be coming from
                 if (options.exposeSource) 
                     this.emitFile({ 
                         type: 'asset',
@@ -122,7 +124,19 @@ export default store;
         },
         transform(code, id) {
             if (!options.root) this.error('The option `root` (the root directory from which to relativize file names) is required. Suggested value: __dirname');
-            if (!filter(id) || !id.endsWith('.svelte')) return;
+
+            if (!filter(id)) return;
+
+            const extraDeps = options.extraDependencies;
+            if (extraDeps && Object.values(extraDeps).some(dep => dep.type == 'import' && dep.path == id)) {
+                this.emitFile({
+                    type: 'asset',
+                    fileName: id,
+                    source: code
+                });
+            }
+
+            if (!id.endsWith('.svelte')) return;
 
 
             let src = code;
