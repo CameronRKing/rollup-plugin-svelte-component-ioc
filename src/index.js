@@ -28,6 +28,8 @@ export default function componentIoc(options = {}) {
 
             const finder = findit(options.root);
             finder.on('file', file => {
+                // things can get a little recursive if we don't ignore the build directory
+                // which we assume to be /public by default
                 if (pathRelativeToRoot(file).startsWith('/public')) return;
                 if (!file.endsWith('.svelte')) return;
 
@@ -40,9 +42,7 @@ export default function componentIoc(options = {}) {
                         fileName: pathRelativeToRoot(file).slice(1) // ignore starting slash
                     });
 
-                componentDefinitions.add(
-                    pathRelativeToRoot(file).replace('.svelte', '')
-                );
+                componentDefinitions.add(pathRelativeToRoot(file));
             });
             return new Promise(resolve => finder.on('end', resolve));
         },
@@ -55,8 +55,8 @@ export default function componentIoc(options = {}) {
 
             const cmps = Array.from(componentDefinitions).map(path => ({
                 path,
-                name: path.replace(/\//g, ''),
-                file: '.' + path + '.svelte'
+                name: path.replace(/\//g, '').replace('.svelte', ''),
+                file: '.' + path
             }));
 
             const extraDeps = options.extraDependencies || {};
@@ -106,7 +106,7 @@ const store = {
         let src = store.userSourceCode[name] || '';
         if (!src) {
             // this lookup path is likely to be an issue in projects with custom setups
-            const response = await fetch('/build' + name + '.svelte');
+            const response = await fetch('/build' + (name.startsWith('/') ? '' : '/') + name);
             if (response.ok)
                 src = await response.text();
         }
@@ -150,9 +150,8 @@ export default store;
             let match;
             while (match = src.match(/(?<!\/\*\* @ioc-ignore \*\/\s*)import (\w+) from ['"]([^'"]*)\.svelte['"]/)) {
                 const [str, cmpName, relativePath] = match;
-
                 const importId = path.posix.resolve(path.dirname(idPath), relativePath);
-                replace(str, `$: ${cmpName} = $__DIS__['${importId}']`);
+                replace(str, `$: ${cmpName} = $__DIS__['${importId}.svelte']`);
             }
 
             // replace custom components with dynamic components

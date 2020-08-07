@@ -19,7 +19,7 @@ describe('build transformations', () => {
     it('builds a component dependency store by looking for svelte components in the given root folder', async () => {
         const storeDefinition = await getStore(plugin);
         expect(storeDefinition).to.include(`import testExample from './test/Example.svelte';`);
-        expect(storeDefinition).to.include("'/test/Example': testExample");
+        expect(storeDefinition).to.include("'/test/Example.svelte': testExample");
     });
 
     it('includes dependencies found in package.json by default', async () => {
@@ -53,7 +53,7 @@ describe('build transformations', () => {
     it('replaces component imports with reactive resolutions from the dependency store', () => {
         const newSrc = plugin.transform(`<script>import MyCmp from './MyCmp.svelte'</script>`, path.join(root + '/src/OtherCmp.svelte'));
         expect(newSrc.code).to.include(`import __DIS__ from '\0component-ioc:component-store';`);
-        expect(newSrc.code).to.include(`$: MyCmp = $__DIS__['/src/MyCmp']`);
+        expect(newSrc.code).to.include(`$: MyCmp = $__DIS__['/src/MyCmp.svelte']`);
         expect(newSrc.code).not.to.include(`import MyCmp from './MyCmp.svelte'`);
     });
 
@@ -185,15 +185,16 @@ describe('browser behavior', function() {
     });
 
     it('replaces a component definition with whatever is given', () => {
-        wwindow.__DIS__.replace('/Example', 'a string');
-        expect(wwindow.__DIS__.get()['/Example']).to.equal('a string');
+        wwindow.__DIS__.replace('/Example.svelte', 'a string');
+        expect(wwindow.__DIS__.get()['/Example.svelte']).to.equal('a string');
     });
 
     it('replaces a component definition from source code', async () => {
-        const oldCmp = wwindow.__DIS__.get()['/Example'];
-        await wwindow.__DIS__.replaceComponent('/Example', '<script>console.log("New component");</script>');
-        expect(wwindow.__DIS__.userSourceCode['/Example']).to.equal('<script>console.log("New component");</script>');
-        expect(wwindow.__DIS__.get()['/Example']).not.to.equal(oldCmp);
+        const oldCmp = wwindow.__DIS__.get()['/Example.svelte'];
+        const exampleSrc = '<script>console.log("New component");</script>';
+        await wwindow.__DIS__.replaceComponent('/Example.svelte', exampleSrc);
+        expect(wwindow.__DIS__.userSourceCode['/Example.svelte']).to.equal(exampleSrc);
+        expect(wwindow.__DIS__.get()['/Example.svelte']).not.to.equal(oldCmp);
     });
 
     it('looks up source code for a component definition, finding it if `exposeSource: true` is set', async () => {
@@ -201,17 +202,17 @@ describe('browser behavior', function() {
             expect(arg).to.equal('/build/NotReal.svelte');
             return { ok: true, text: () => Promise.resolve('source found!') };
         };
-        expect(await wwindow.__DIS__.lookupSource('/NotReal')).to.equal('source found!');
+        expect(await wwindow.__DIS__.lookupSource('/NotReal.svelte')).to.equal('source found!');
     });
 
     it('looks up source code for a component definition, returning user-provided code if it exists', async () => {
-        wwindow.__DIS__.userSourceCode['/Example'] = 'user source found!';
-        expect(await wwindow.__DIS__.lookupSource('/Example')).to.equal('user source found!');
+        wwindow.__DIS__.userSourceCode['/Example.svelte'] = 'user source found!';
+        expect(await wwindow.__DIS__.lookupSource('/Example.svelte')).to.equal('user source found!');
     });
 
     it('looks up source code for a component definition, returning an empty string if no source is available', async () => {
         doFetch = () => ({ ok: false, text: () => Promise.resolve('shouldnt see this') });
-        expect(await wwindow.__DIS__.lookupSource('/CantFind')).to.equal('');
+        expect(await wwindow.__DIS__.lookupSource('/CantFind.svelte')).to.equal('');
     });
 
     it('looks up source code for a store definition, returning fn.toString() if the definition is a function', async () => {
