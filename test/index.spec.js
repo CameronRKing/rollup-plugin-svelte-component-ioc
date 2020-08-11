@@ -36,10 +36,10 @@ describe('build transformations', () => {
         };
         const extras = componentIoc({ root, extraDependencies, includeDependencies: false });
         const storeDefinition = await getStore(extras);
-        expect(storeDefinition).to.include(`import * as dep1 from 'extra-dep'`);
-        expect(storeDefinition).to.include(`import dep2 from 'other-dep'`);
-        expect(storeDefinition).to.include(`'extra/0': dep1`);
-        expect(storeDefinition).to.include(`'extra/1': dep2`);
+        expect(storeDefinition).to.include(`import * as dep2 from 'extra-dep'`);
+        expect(storeDefinition).to.include(`import dep3 from 'other-dep'`);
+        expect(storeDefinition).to.include(`'extra/0': dep2`);
+        expect(storeDefinition).to.include(`'extra/1': dep3`);
         expect(storeDefinition).to.include(`'extra/2': () => console.log("I work!")`);
     });
 
@@ -76,6 +76,11 @@ import TransformMe from './TransformMe.svelte';
 
         expect(newSrc.code).to.include(`import MyCmp from './MyCmp.svelte';`);
         expect(newSrc.code).to.include(`<svelte:component this={MyCmp} />`);
+    });
+
+    it('adds a __dis_src__ variable to the component that stores the component\'s DIS path for later use in developer tooling', async () => {
+        const newSrc = plugin.transform(`<script></script>`, root + '\\Cmp.svelte');
+        expect(newSrc.code).to.include(`const __dis_src__ = '/Cmp.svelte';`);
     });
 
     it('exposes source files in the build if `exposeSource` is set to true', async () => {

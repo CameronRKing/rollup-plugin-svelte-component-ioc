@@ -144,8 +144,7 @@ export default store;
             const replace = (...args) => src = src.replace(...args);
             const idPath = pathRelativeToRoot(id);
 
-            replace('<script>', `<script>import __DIS__ from '\0component-ioc:component-store';`);
-
+            replace('<script>', `<script>import __DIS__ from '\0component-ioc:component-store'; const __dis_src__ = '${idPath}';`);
 
             // replace imports of svelte components with dependency store injections
             let match;
