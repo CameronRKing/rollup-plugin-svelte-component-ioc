@@ -149,7 +149,13 @@ export default store;
             let match;
             while (match = src.match(/(?<!\/\*\* @ioc-ignore \*\/\s*)import (\w+) from ['"]([^'"]*)\.svelte['"]/)) {
                 const [str, cmpName, relativePath] = match;
-                const importId = path.posix.resolve(path.dirname(idPath), relativePath);
+                let importId;
+                // this bit is a little magical
+                // getting rollup-plugin-related import names to properly resolve is proving to be troublesome
+                if (idPath.startsWith('/'))
+                    importId = path.posix.resolve(path.dirname(idPath), relativePath);
+                else
+                    importId = path.posix.resolve('/' + path.dirname(idPath), relativePath).slice(1);
                 replace(str, `$: ${cmpName} = $__DIS__['${importId}.svelte']`);
             }
 
