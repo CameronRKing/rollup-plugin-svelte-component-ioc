@@ -22,6 +22,12 @@ describe('build transformations', () => {
         expect(storeDefinition).to.include("'/test/Example.svelte': testExample");
     });
 
+    it('ignores folders passed in through the `ignore` option', async () => {
+        const noTest = componentIoc({ root, ignore: ['/test'] });
+        const storeDefinition = await getStore(noTest);
+        expect(storeDefinition).not.to.include(`import testExample from './test/Example.svelte';`);
+    });
+
     it('includes dependencies found in package.json by default', async () => {
         const storeDefinition = await getStore(plugin);
         expect(storeDefinition).to.include(`import * as dep0 from 'findit';`);

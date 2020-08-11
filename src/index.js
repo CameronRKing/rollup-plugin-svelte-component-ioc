@@ -29,9 +29,8 @@ export default function componentIoc(options = {}) {
 
             const finder = findit(options.root);
             finder.on('file', file => {
-                // things can get a little recursive if we don't ignore the build directory
-                // which we assume to be /public by default
-                if (pathRelativeToRoot(file).startsWith('/public')) return;
+                if (options.ignore && options.ignore.some(toIgnore => pathRelativeToRoot(file).startsWith(toIgnore))) return;
+                
                 if (!file.endsWith('.svelte')) return;
 
                 // source files to be exposed from the `extraDependencies` option will be emitted in transform(),
