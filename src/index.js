@@ -55,7 +55,7 @@ export default function componentIoc(options = {}) {
 
             const cmps = Array.from(componentDefinitions).map(path => ({
                 path,
-                name: path.replace(/\//g, '').replace('.svelte', ''),
+                name: path.replace(/[/-]/g, '').replace('.svelte', ''),
                 file: '.' + path
             }));
 
