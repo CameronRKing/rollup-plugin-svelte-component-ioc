@@ -1,8 +1,8 @@
 import * as svelte from 'svelte/compiler';
 
-export default function buildComponent(fileName, code) {
+export default function buildComponent(fileName, code, opts={}) {
     const transformed = transformComponent(fileName, code);    
-    return compileComponent(fileName, transformed);
+    return compileComponent(fileName, transformed, opts);
 }
 
 function transformComponent(fileName, code) {
@@ -33,7 +33,13 @@ function resolveRelativePath(root, relative) {
     return relativeUrl.href.replace(baseUrl, ''); 
 }
 
-function compileComponent(filename, src) {
+async function compileComponent(filename, src, opts={}) {
+    if (opts.preprocess) {
+        for (plugin in opts.preprocess) {
+            src = await svelte.preprocess(src, plugin);
+        }
+    }
+
     const { js } = svelte.compile(src, { format: 'cjs', filename });
 
     let code = js.code;

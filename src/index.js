@@ -98,6 +98,7 @@ const store = {
             return store;
         });
     },
+    buildComponent,
     async replaceComponent(name, source) {
         store.userSourceCode[name] = source;
         store.replace(name, await buildComponent(name, source));
