@@ -35,7 +35,7 @@ function resolveRelativePath(root, relative) {
 
 async function compileComponent(filename, src, opts={}) {
     if (opts.preprocess) {
-        for (plugin in opts.preprocess) {
+        for (plugin of opts.preprocess) {
             src = await svelte.preprocess(src, plugin);
         }
     }
