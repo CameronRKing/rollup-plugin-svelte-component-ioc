@@ -4,11 +4,16 @@ Replaces direct references to svelte components with dynamic references fetched 
 
 Svelte websites become editable by end-users by replacing component definitions at runtime.
 
+Also see:
++ https://github.com/CameronRKing/rollup-plugin-layout-intercept
+    + wraps the root component in a Lumino widget for better runtime layout manipulation
++ https://github.com/CameronRKing/rollup-plugin-ioc-editing-tools
+    + packages a small editor including a text editor, component inspector, Mocha test runner, and Markdown renderer
+
 ## Installation
 
-```
-npm install --save-dev rollup-plugin-svelte-component-ioc
-```
+This is an unpublished prototype library. You'll have to install it manually.
+In `package.json`, add, `"rollup-plugin-svelte-component-ioc": "git+https://github.com/CameronRKing/rollup-plugin-svelte-component-ioc.git"`
 
 Then, in `rollup.config.js`,
 
