@@ -4,6 +4,10 @@ Replaces direct references to svelte components with dynamic references fetched 
 
 Svelte websites become editable by end-users by replacing component definitions at runtime.
 
+Why? Because I believe users should have full control over their digital experience.
+
+Watch a demo video at https://www.youtube.com/watch?v=ZDhJLdhSvGs
+
 Also see:
 + https://github.com/CameronRKing/rollup-plugin-layout-intercept
     + wraps the root component in a Lumino widget for better runtime layout manipulation
