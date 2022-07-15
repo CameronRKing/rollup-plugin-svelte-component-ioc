@@ -35,6 +35,6 @@
   },
   "dependencies": {
     "findit": "^2.0.0",
-    "svelte": "^3.24.0"
+    "svelte": "^3.49.0"
   }
 }
